@@ -22,7 +22,8 @@ public class SiteSettingsController {
 
     private static final Pattern PHONE = Pattern.compile("^\\+?[0-9][0-9 \\-]{5,28}$");
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
-    private static final Pattern ACCOUNT = Pattern.compile("^[0-9][0-9 \\-]{3,38}$");
+    // Монгол IBAN: MN + 2 хяналтын орон + 16 орон (нийт 20 тэмдэгт)
+    private static final Pattern MN_IBAN = Pattern.compile("^MN[0-9]{18}$");
 
     private final SiteSettingsRepository repository;
     private final BankAccountRepository banks;
@@ -66,11 +67,17 @@ public class SiteSettingsController {
                     error = "Банкны код буруу байна";
                     break;
                 }
-                String number = clean(b.accountNumber());
+                String raw = clean(b.accountNumber());
                 String name = clean(b.accountName());
-                if (number == null) continue;
-                if (!ACCOUNT.matcher(number).matches()) {
-                    error = "Дансны дугаар буруу байна (зөвхөн тоо)";
+                if (raw == null) continue;
+                // Зай, зураасыг арилгаж, том үсгээр хадгална: MN12 3456 ... → MN123456...
+                String number = raw.replaceAll("[\\s\\-]", "").toUpperCase();
+                if (!MN_IBAN.matcher(number).matches()) {
+                    error = "IBAN буруу байна: MN-ээр эхэлж, араас нь 18 оронтой тоо байх ёстой (нийт 20 тэмдэгт)";
+                    break;
+                }
+                if (!ibanChecksumOk(number)) {
+                    error = "IBAN-ий хяналтын орон таарахгүй байна. Дугаараа дахин шалгана уу";
                     break;
                 }
                 if (name == null || name.length() > 120) {
@@ -116,6 +123,17 @@ public class SiteSettingsController {
         map.put("freeDeliveryOver", s.getFreeDeliveryOver());
         map.put("bankAccounts", accounts);
         return map;
+    }
+
+    /** ISO 13616: эхний 4 тэмдэгтийг ард нь шилжүүлж, үсгийг тоо (A=10 ... Z=35) болгоод mod 97 == 1 */
+    static boolean ibanChecksumOk(String iban) {
+        String rearranged = iban.substring(4) + iban.substring(0, 4);
+        int mod = 0;
+        for (char c : rearranged.toCharArray()) {
+            int v = Character.isDigit(c) ? c - '0' : c - 'A' + 10;
+            mod = (v > 9 ? mod * 100 + v : mod * 10 + v) % 97;
+        }
+        return mod == 1;
     }
 
     private static String clean(String value) {
