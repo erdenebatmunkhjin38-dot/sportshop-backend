@@ -38,6 +38,9 @@ public class CustomerOrderController {
     @Autowired
     private CheckoutController checkout;
 
+    @Autowired
+    private mn.shop.service.OrderMailService mail;
+
     private static final Set<String> STATUSES = Set.of("NEW", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED");
 
     record StatusBody(String status) {}
@@ -66,8 +69,12 @@ public class CustomerOrderController {
                 orderedVariants.findByCustomerOrderId(id)
                         .forEach(line -> variants.increaseStock(line.getVariantId(), line.getQuantity()));
             }
+            boolean changed = !body.status().equals(order.getStatus());
             order.setStatus(body.status());
-            return ResponseEntity.ok(orderService.save(order));
+            CustomerOrder saved = orderService.save(order);
+            // Хүргэлтэд гарсан / хүргэгдсэн / цуцлагдсан үед хэрэглэгчид мэдэгдэнэ
+            if (changed) mail.sendStatus(saved, body.status());
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 

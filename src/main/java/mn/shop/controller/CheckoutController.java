@@ -197,6 +197,9 @@ public class CheckoutController {
             orderedVariants.save(line);
         }
 
+        // "Захиалга бүртгэгдлээ" и-мэйл (дансаар бол шилжүүлэх данстай)
+        mail.sendPlaced(order);
+
         return ResponseEntity.ok(Map.of(
                 "orderId", order.getId(),
                 "confirmationNumber", order.getConfirmationNumber(),
