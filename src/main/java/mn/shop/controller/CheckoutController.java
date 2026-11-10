@@ -14,6 +14,9 @@ import mn.shop.repository.OrderedProductRepository;
 import mn.shop.repository.OrderedVariantRepository;
 import mn.shop.repository.ProductRepository;
 import mn.shop.repository.ProductVariantRepository;
+import mn.shop.repository.BankAccountRepository;
+import mn.shop.repository.SiteSettingsRepository;
+import mn.shop.model.SiteSettings;
 import mn.shop.security.AdminInterceptor;
 import mn.shop.service.OrderMailService;
 import mn.shop.service.QPayService;
@@ -53,11 +56,13 @@ public class CheckoutController {
     private final OrderedVariantRepository orderedVariants;
     private final QPayService qpay;
     private final OrderMailService mail;
+    private final SiteSettingsRepository settings;
+    private final BankAccountRepository bankAccounts;
 
     // Хүргэлтийн төлбөр байршлаас хамаарна. frontend-ийн app/lib/delivery.ts-тэй ижил байх ёстой
     @Value("${app.delivery.ulaanbaatar:7000}")
     private BigDecimal ulaanbaatarFee;
-    @Value("${app.delivery.rural:15000}")
+    @Value("${app.delivery.rural:7000}")
     private BigDecimal ruralFee;
 
     // Үүсгэсэн QPay нэхэмжлэлийг (QR зураг) санах ойд хадгална — сервер дахин асахад шинээр үүсгэнэ
@@ -66,7 +71,8 @@ public class CheckoutController {
     public CheckoutController(ProductRepository products, CustomerRepository customers,
                               CustomerOrderRepository orders, OrderedProductRepository orderedProducts,
                               QPayService qpay, OrderMailService mail,
-                              ProductVariantRepository variants, OrderedVariantRepository orderedVariants) {
+                              ProductVariantRepository variants, OrderedVariantRepository orderedVariants,
+                              SiteSettingsRepository settings, BankAccountRepository bankAccounts) {
         this.products = products;
         this.customers = customers;
         this.orders = orders;
@@ -75,6 +81,8 @@ public class CheckoutController {
         this.mail = mail;
         this.variants = variants;
         this.orderedVariants = orderedVariants;
+        this.settings = settings;
+        this.bankAccounts = bankAccounts;
     }
 
     @PostMapping
@@ -82,6 +90,10 @@ public class CheckoutController {
     public ResponseEntity<?> checkout(@RequestBody CheckoutBody body, HttpServletRequest req) {
         // Хүргэлтийн мэдээллийг шалгана (DB-д 45 тэмдэгтээр хязгаарлагдсан)
         String error = validate(body);
+        // Дансаар төлөхөд тухайн банкны данс админ тохиргоонд оруулсан байх ёстой
+        if (error == null && !"QPAY".equals(body.paymentMethod()) && !bankAccounts.existsById(body.paymentMethod())) {
+            error = "Энэ банкаар төлөх боломжгүй байна. Өөр төлбөрийн хэлбэр сонгоно уу";
+        }
         if (error != null) return ResponseEntity.badRequest().body(Map.of("message", error));
 
         // Нэвтэрсэн хэрэглэгчийн и-мэйлийг токеноос авна
@@ -89,7 +101,7 @@ public class CheckoutController {
         String email = claims.get("username", String.class);
 
         // Ижил бүтээгдэхүүнийг нэгтгэж, DB-ээс үнийг нь авна
-        // Нэг барааны өөр размерууд нэг мөрд нэгдэж, размерыг тайлбараар хадгална
+        // Нэг барааны өөр хэмжээнүүд нэг мөрд нэгдэж, хэмжээыг тайлбараар хадгална
         Map<Long, Integer> quantities = new LinkedHashMap<>();
         Map<Long, List<String>> sizes = new HashMap<>();
         for (Item item : body.items()) {
@@ -105,7 +117,7 @@ public class CheckoutController {
             return ResponseEntity.badRequest().body(Map.of("message", "Зарим бүтээгдэхүүн олдсонгүй"));
         }
 
-        // Сонгосон өнгө, размерын үлдэгдлийг хасна
+        // Сонгосон өнгө, хэмжээний үлдэгдлийг хасна
         Map<Long, Integer> takenVariants = new LinkedHashMap<>();
         for (Item item : body.items()) {
             Product p = found.stream().filter(x -> x.getId().equals(item.productId())).findFirst().orElseThrow();
@@ -116,7 +128,7 @@ public class CheckoutController {
                     .findFirst().orElse(null);
             if (variant == null) {
                 TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
-                return ResponseEntity.badRequest().body(Map.of("message", p.getName() + ": өнгө, размераа сонгоно уу"));
+                return ResponseEntity.badRequest().body(Map.of("message", p.getName() + ": өнгө, хэмжээгээ сонгоно уу"));
             }
             if (variants.decreaseStock(variant.getId(), item.quantity()) == 0) {
                 TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
@@ -140,6 +152,11 @@ public class CheckoutController {
             amount = amount.add(p.currentPrice().multiply(BigDecimal.valueOf(quantities.get(p.getId()))));
         }
         BigDecimal deliveryFee = body.cityRegion().trim().startsWith("Улаанбаатар") ? ulaanbaatarFee : ruralFee;
+        // Барааны дүн админы тохируулсан босгоос их бол хүргэлт үнэгүй
+        Long freeOver = settings.findById(SiteSettings.SINGLETON_ID).map(SiteSettings::getFreeDeliveryOver).orElse(null);
+        if (freeOver != null && amount.compareTo(BigDecimal.valueOf(freeOver)) >= 0) {
+            deliveryFee = BigDecimal.ZERO;
+        }
         amount = amount.add(deliveryFee);
 
         Customer customer = new Customer();
@@ -232,8 +249,9 @@ public class CheckoutController {
      * Захиалгын төлбөрийг баталгаажуулна. Зөвхөн захиалгын эзэн.
      * - QPay идэвхтэй үед: QPay-ээс төлбөр орсон эсэхийг шалгаж, орсон бол PAID болгоно
      *   (ороогүй бол 409). Frontend үүнийг хэдэн секунд тутам дуудна.
-     * - QPay тохируулаагүй эсвэл дансаар шилжүүлсэн үед: ДЕМО — шууд PAID болгоно.
-     *   (Банкны данс руу орсон гүйлгээг автоматаар шалгахын тулд банкны API хэрэгтэй.)
+     * - QPay тохируулаагүй эсвэл дансаар шилжүүлсэн үед: хэрэглэгч "шилжүүлсэн" гэж мэдэгдэхэд
+     *   CHECKING болно. Мөнгө орсныг админ шалгаад PUT /api/orders/{id}/payment-аар PAID болгоно.
+     *   (Хэрэглэгч өөрөө PAID болгож чадахгүй.)
      */
     @PostMapping("/{orderId}/pay")
     @Transactional
@@ -250,8 +268,11 @@ public class CheckoutController {
                             "message", "Төлбөр хараахан орж ирээгүй байна",
                             "pending", true));
                 }
+                markPaid(order);
+            } else {
+                order.setPaymentStatus("CHECKING");
+                orders.save(order);
             }
-            markPaid(order);
         }
 
         return ResponseEntity.ok(Map.of(
@@ -270,6 +291,15 @@ public class CheckoutController {
             if (qpay.isEnabled() && qpay.isPaid(order.getQpayInvoiceId(), order.getAmount())) {
                 markPaid(order);
             }
+        });
+    }
+
+    /** Админ данс руу мөнгө орсныг шалгаад баталгаажуулна (CustomerOrderController). */
+    @Transactional
+    public Optional<CustomerOrder> confirmByAdmin(Long orderId) {
+        return orders.findById(orderId).map(order -> {
+            if (!"PAID".equals(order.getPaymentStatus())) markPaid(order);
+            return order;
         });
     }
 

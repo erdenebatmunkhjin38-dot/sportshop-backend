@@ -107,11 +107,14 @@ public class ProductController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Зураг заавал биш. Байвал зөвхөн http/https холбоос зөвшөөрнө (javascript: гэх мэтээс сэргийлнэ). */
+    /**
+     * Зураг заавал биш. Байвал http/https холбоос эсвэл админы оруулсан /uploads/ зураг
+     * (javascript: гэх мэтээс сэргийлнэ).
+     */
     private static String validateImageUrl(String url) {
         if (url == null || url.isBlank()) return null;
         String u = url.trim().toLowerCase();
-        if (!u.startsWith("http://") && !u.startsWith("https://")) {
+        if (!u.startsWith("http://") && !u.startsWith("https://") && !u.startsWith("/uploads/")) {
             return "Зургийн холбоос http:// эсвэл https://-ээр эхлэх ёстой";
         }
         if (url.trim().length() > 500) return "Зургийн холбоос хэт урт байна";
@@ -129,8 +132,8 @@ public class ProductController {
     }
 
     /**
-     * Ирсэн хувилбаруудтай ижилсүүлнэ. Ижил өнгө+размертай мөрийг шинэчилж, бусдыг нь устгана.
-     * Хувилбартай бол нийт үлдэгдэл, размерын жагсаалтыг тэдгээрээс бодно.
+     * Ирсэн хувилбаруудтай ижилсүүлнэ. Ижил өнгө+хэмжээтай мөрийг шинэчилж, бусдыг нь устгана.
+     * Хувилбартай бол нийт үлдэгдэл, хэмжээний жагсаалтыг тэдгээрээс бодно.
      */
     private static void applyVariants(Product product, List<ProductVariant> incoming) {
         if (incoming == null) return;
@@ -152,6 +155,7 @@ public class ProductController {
                 product.getVariants().add(target);
             }
             target.setStock(in.getStock() == null ? 0 : Math.max(0, in.getStock()));
+            target.setImageUrl(blankToNull(in.getImageUrl()));
         }
         product.getVariants().removeIf(v -> !keep.contains(v.getColor() + "|" + v.getSize()));
 

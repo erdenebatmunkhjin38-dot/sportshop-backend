@@ -71,7 +71,7 @@ public class PostController {
         String url = p.getImageUrl();
         if (url != null && !url.isBlank()) {
             String u = url.trim().toLowerCase();
-            if (!u.startsWith("http://") && !u.startsWith("https://"))
+            if (!u.startsWith("http://") && !u.startsWith("https://") && !u.startsWith("/uploads/"))
                 return "Зургийн холбоос http:// эсвэл https://-ээр эхлэх ёстой";
         }
         return null;

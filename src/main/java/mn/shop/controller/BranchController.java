@@ -65,7 +65,8 @@ public class BranchController {
         String url = b.getImageUrl();
         if (url != null && !url.isBlank()) {
             String u = url.trim().toLowerCase();
-            if (!u.startsWith("http://") && !u.startsWith("https://") && !u.startsWith("/images/"))
+            if (!u.startsWith("http://") && !u.startsWith("https://") && !u.startsWith("/images/")
+                    && !u.startsWith("/uploads/"))
                 return "Зургийн холбоос буруу байна";
             if (u.length() > 500) return "Зургийн холбоос хэт урт байна";
         }

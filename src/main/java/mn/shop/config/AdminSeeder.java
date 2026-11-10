@@ -38,11 +38,20 @@ public class AdminSeeder implements ApplicationRunner {
         this.password = password;
     }
 
+    private static boolean strong(String pw) {
+        return pw.length() >= 10
+                && pw.chars().anyMatch(Character::isLetter)
+                && pw.chars().anyMatch(Character::isDigit)
+                && pw.chars().anyMatch(c -> !Character.isLetterOrDigit(c) && !Character.isWhitespace(c));
+    }
+
     @Override
     public void run(ApplicationArguments args) {
         if (email.isEmpty() || password.isEmpty()) return;
-        if (password.length() < 6) {
-            log.warn("app.admin.password хамгийн багадаа 6 тэмдэгт байх ёстой. Админ үүсгэсэнгүй.");
+        // Админ бүх захиалга, хэрэглэгчийн мэдээлэлд хандана тул сул нууц үгийг хүлээж авахгүй
+        if (!strong(password)) {
+            log.warn("app.admin.password сул байна: 10+ тэмдэгт, үсэг, тоо, тусгай тэмдэгт (!@#$ гэх мэт) "
+                    + "заавал орсон байх ёстой. Админы нууц үгийг шинэчилсэнгүй.");
             return;
         }
 

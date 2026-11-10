@@ -61,7 +61,8 @@ public class AdminInterceptor implements HandlerInterceptor {
 
         // Бүтээгдэхүүн, ангилал, салбарыг хүн бүр унших боломжтой
         if (read && (path.startsWith("/api/products") || path.startsWith("/api/categories")
-                || path.startsWith("/api/branches") || path.startsWith("/api/brands"))) {
+                || path.startsWith("/api/branches") || path.startsWith("/api/brands")
+                || path.equals("/api/settings"))) {
             return Access.PUBLIC;
         }
         // Өөрийн захиалгууд (и-мэйлийг токеноос авна)

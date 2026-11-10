@@ -35,9 +35,19 @@ public class CustomerOrderController {
     @Autowired
     private ProductVariantRepository variants;
 
+    @Autowired
+    private CheckoutController checkout;
+
     private static final Set<String> STATUSES = Set.of("NEW", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED");
 
     record StatusBody(String status) {}
+
+    // PUT: Дансаар шилжүүлсэн төлбөрийг админ шалгаад баталгаажуулна (PAID болгож, и-мэйл илгээнэ)
+    @PutMapping("/{id}/payment")
+    public ResponseEntity<?> confirmPayment(@PathVariable Long id) {
+        return checkout.confirmByAdmin(id).<ResponseEntity<?>>map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     // PUT: Захиалгын явц өөрчлөх. Цуцлахад үлдэгдэл буцаж нэмэгдэнэ
     @PutMapping("/{id}/status")

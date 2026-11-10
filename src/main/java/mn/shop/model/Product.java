@@ -44,7 +44,7 @@ public class Product {
     @Column(name = "stock")
     private Integer stock;
 
-    // Размерууд таслалаар: "40,41,42" эсвэл "S,M,L". Заавал биш
+    // Хэмжээнүүд таслалаар: "40,41,42" эсвэл "S,M,L". Заавал биш
     @Column(name = "sizes", length = 200)
     private String sizes;
 
@@ -71,7 +71,7 @@ public class Product {
             columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
     private LocalDateTime lastUpdate;
 
-    // Өнгө + размер тус бүрийн үлдэгдэл. Байвал stock нь тэдгээрийн нийлбэр болно
+    // Өнгө + хэмжээ тус бүрийн үлдэгдэл. Байвал stock нь тэдгээрийн нийлбэр болно
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("id")
     private List<ProductVariant> variants = new ArrayList<>();

@@ -84,7 +84,8 @@ public class BrandController {
         String url = b.getLogoUrl();
         if (url != null && !url.isBlank()) {
             String u = url.trim().toLowerCase();
-            if (!u.startsWith("http://") && !u.startsWith("https://") && !u.startsWith("/brands/"))
+            if (!u.startsWith("http://") && !u.startsWith("https://") && !u.startsWith("/brands/")
+                    && !u.startsWith("/uploads/"))
                 return "Логоны холбоос буруу байна";
             if (u.length() > 500) return "Логоны холбоос хэт урт байна";
         }

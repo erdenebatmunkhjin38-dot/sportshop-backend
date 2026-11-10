@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-// Барааны хувилбар: өнгө + размер тус бүрийн үлдэгдэл. Өнгө эсвэл размер хоосон байж болно.
+// Барааны хувилбар: өнгө + хэмжээ тус бүрийн үлдэгдэл. Өнгө эсвэл хэмжээ хоосон байж болно.
 @Getter
 @Setter
 @Entity
@@ -28,4 +28,8 @@ public class ProductVariant {
 
     @Column(name = "stock", nullable = false)
     private Integer stock = 0;
+
+    // Энэ өнгийн зураг. Хоосон бол барааны үндсэн зураг харагдана
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 }

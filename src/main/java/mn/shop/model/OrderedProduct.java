@@ -26,7 +26,7 @@ public class OrderedProduct {
     @Column(name = "unit_price", precision = 9, scale = 2)
     private java.math.BigDecimal unitPrice;
 
-    // Сонгосон размерууд: "42 × 1, 43 × 2"
+    // Сонгосон хэмжээнүүд: "42 × 1, 43 × 2"
     @Column(name = "sizes", length = 200)
     private String sizes;
 
